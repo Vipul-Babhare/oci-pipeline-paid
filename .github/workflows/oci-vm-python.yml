@@ -23,6 +23,7 @@ jobs:
 
     - name: Configure OCI CLI
       run: |
+        export SUPPRESS_LABEL_WARNING=True
         mkdir -p ~/.oci
         echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
         chmod 600 ~/.oci/oci_api_key.pem
@@ -42,8 +43,22 @@ jobs:
       id: launch_vm
       run: |
         echo "⏳ Launching free-tier VM..."
-        AD=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[0].name" --raw-output)
-        IMAGE_ID=$(oci compute image list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[?\"operating-system\"=='Canonical Ubuntu' && contains(\"operating-system-version\", '22.04')].id | [0]" --raw-output)
+        AD=$(oci iam availability-domain list \
+          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+          --query "data[0].name" --raw-output)
+        echo "🔹 Selected Availability Domain: $AD"
+
+        IMAGE_ID=$(oci compute image list \
+          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+          --query "data[?\"operating-system\"=='Canonical Ubuntu' && contains(\"operating-system-version\", '22.04')].id | [0]" \
+          --raw-output)
+
+        if [ -z "$IMAGE_ID" ]; then
+          echo "❌ Could not find Ubuntu 22.04 image. Aborting."
+          exit 1
+        fi
+
+        echo "✅ Ubuntu Image ID: $IMAGE_ID"
 
         INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
@@ -56,6 +71,7 @@ jobs:
           --wait-for-state RUNNING \
           --query "data.id" --raw-output)
 
+        echo "✅ Instance Launched: $INSTANCE_ID"
         echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
 
     - name: Wait and Fetch Public IP
