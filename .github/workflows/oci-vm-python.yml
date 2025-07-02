@@ -41,10 +41,10 @@ jobs:
       - name: Test OCI CLI Config with Debug
         run: |
           echo "🔍 Verifying OCI CLI authentication with debug output..."
-          oci iam availability-domain list \
-            --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-            --region ${{ secrets.OCI_REGION }} \
-            --debug
+             oci iam availability-domain list \
+             --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+             --region ${{ secrets.OCI_REGION }} \
+             --debug
 
       - name: Launch Free Tier Ubuntu VM
         id: launch_vm
