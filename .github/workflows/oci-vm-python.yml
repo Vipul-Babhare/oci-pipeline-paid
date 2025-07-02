@@ -28,17 +28,28 @@ jobs:
         chmod 600 ~/.oci/oci_api_key.pem
 
         cat <<EOF > ~/.oci/config
-        [DEFAULT]
-        user=${{ secrets.OCI_USER_OCID }}
-        fingerprint=${{ secrets.OCI_FINGERPRINT }}
-        key_file=/home/runner/.oci/oci_api_key.pem
-        tenancy=${{ secrets.OCI_TENANCY_OCID }}
-        region=${{ secrets.OCI_REGION }}
-        EOF
+[DEFAULT]
+user=${{ secrets.OCI_USER_OCID }}
+fingerprint=${{ secrets.OCI_FINGERPRINT }}
+key_file=/home/runner/.oci/oci_api_key.pem
+tenancy=${{ secrets.OCI_TENANCY_OCID }}
+region=${{ secrets.OCI_REGION }}
+EOF
 
         chmod 600 ~/.oci/config
         echo "✅ OCI CLI configured"
         oci --version
+
+    - name: 🔍 Debug OCI Config and Key
+      run: |
+        echo "🧾 CONFIG FILE CONTENT:"
+        cat ~/.oci/config || echo "❌ Config file missing!"
+        echo "🔑 PRIVATE KEY FILE CHECK:"
+        ls -l ~/.oci/oci_api_key.pem || echo "❌ Key file missing!"
+        echo "🔐 Fingerprint: ${{ secrets.OCI_FINGERPRINT }}"
+        echo "👤 User OCID: ${{ secrets.OCI_USER_OCID }}"
+        echo "🏢 Tenancy OCID: ${{ secrets.OCI_TENANCY_OCID }}"
+        echo "📍 Region: ${{ secrets.OCI_REGION }}"
 
     - name: Launch Free Tier Ubuntu VM
       id: launch_vm
