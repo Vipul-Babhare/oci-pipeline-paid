@@ -9,95 +9,90 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repo
-      uses: actions/checkout@v3
+      - name: Checkout Repo
+        uses: actions/checkout@v3
 
-    - name: Install OCI CLI and Python
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y unzip python3 python3-pip
-        curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
-        chmod +x install.sh
-        ./install.sh --accept-all-defaults <<< ''
-        echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Install OCI CLI and Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip python3 python3-pip
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
+          chmod +x install.sh
+          ./install.sh --accept-all-defaults <<< ''
+          echo "$HOME/bin" >> $GITHUB_PATH
 
-    - name: Configure OCI CLI
-      run: |
-        mkdir -p ~/.oci
-        echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
-        chmod 600 ~/.oci/oci_api_key.pem
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
 
-        cat <<EOF > ~/.oci/config
-[DEFAULT]
-user=${{ secrets.OCI_USER_OCID }}
-fingerprint=${{ secrets.OCI_FINGERPRINT }}
-key_file=/home/runner/.oci/oci_api_key.pem
-tenancy=${{ secrets.OCI_TENANCY_OCID }}
-region=${{ secrets.OCI_REGION }}
-EOF
+          echo "[DEFAULT]" > ~/.oci/config
+          echo "user=${{ secrets.OCI_USER_OCID }}" >> ~/.oci/config
+          echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}" >> ~/.oci/config
+          echo "key_file=/home/runner/.oci/oci_api_key.pem" >> ~/.oci/config
+          echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}" >> ~/.oci/config
+          echo "region=${{ secrets.OCI_REGION }}" >> ~/.oci/config
 
-        chmod 600 ~/.oci/config
-        echo "✅ OCI CLI configured"
-        oci --version
+          chmod 600 ~/.oci/config
+          echo "✅ OCI CLI configured"
+          oci --version
 
-    - name: 🔍 Debug OCI Config and Key
-      run: |
-        echo "🧾 CONFIG FILE CONTENT:"
-        cat ~/.oci/config || echo "❌ Config file missing!"
-        echo "🔑 PRIVATE KEY FILE CHECK:"
-        ls -l ~/.oci/oci_api_key.pem || echo "❌ Key file missing!"
-        echo "🔐 Fingerprint: ${{ secrets.OCI_FINGERPRINT }}"
-        echo "👤 User OCID: ${{ secrets.OCI_USER_OCID }}"
-        echo "🏢 Tenancy OCID: ${{ secrets.OCI_TENANCY_OCID }}"
-        echo "📍 Region: ${{ secrets.OCI_REGION }}"
+      - name: Test OCI CLI Config with Debug
+        run: |
+          echo "🔍 Verifying OCI CLI authentication with debug output..."
+          oci iam availability-domain list \
+            --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+            --region ${{ secrets.OCI_REGION }} \
+            --debug
 
-    - name: Launch Free Tier Ubuntu VM
-      id: launch_vm
-      run: |
-        echo "⏳ Launching free-tier VM..."
-        AD=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[0].name" --raw-output)
-        IMAGE_ID=$(oci compute image list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[?\"operating-system\"=='Canonical Ubuntu' && contains(\"operating-system-version\", '22.04')].id | [0]" --raw-output)
+      - name: Launch Free Tier Ubuntu VM
+        id: launch_vm
+        run: |
+          echo "⏳ Launching free-tier VM..."
+          AD=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[0].name" --raw-output)
+          IMAGE_ID=$(oci compute image list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[?\"operating-system\"=='Canonical Ubuntu' && contains(\"operating-system-version\", '22.04')].id | [0]" --raw-output)
 
-        INSTANCE_ID=$(oci compute instance launch \
-          --availability-domain "$AD" \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --shape "VM.Standard.E2.1.Micro" \
-          --display-name "github-actions-vm" \
-          --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
-          --image-id "$IMAGE_ID" \
-          --assign-public-ip true \
-          --wait-for-state RUNNING \
-          --query "data.id" --raw-output)
+          INSTANCE_ID=$(oci compute instance launch \
+            --availability-domain "$AD" \
+            --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+            --shape "VM.Standard.E2.1.Micro" \
+            --display-name "github-actions-vm" \
+            --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
+            --image-id "$IMAGE_ID" \
+            --assign-public-ip true \
+            --wait-for-state RUNNING \
+            --query "data.id" --raw-output)
 
-        echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
 
-    - name: Wait and Fetch Public IP
-      run: |
-        sleep 60
-        PUBLIC_IP=$(oci compute instance list-vnics \
-          --instance-id $INSTANCE_ID \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --query "data[0].\"public-ip\"" --raw-output)
-        echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
-        echo "🔗 Public IP: $PUBLIC_IP"
+      - name: Wait and Fetch Public IP
+        run: |
+          sleep 60
+          PUBLIC_IP=$(oci compute instance list-vnics \
+            --instance-id $INSTANCE_ID \
+            --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+            --query "data[0].\"public-ip\"" --raw-output)
+          echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
+          echo "🔗 Public IP: $PUBLIC_IP"
 
-    - name: SSH and Run Python Code
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ env.PUBLIC_IP }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          sudo apt update
-          sudo apt install -y python3
-          echo 'print("Hello from company-paid Oracle Cloud!")' > script.py
-          python3 script.py > result.txt
+      - name: SSH and Run Python Code
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.PUBLIC_IP }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            sudo apt update
+            sudo apt install -y python3
+            echo 'print("Hello from company-paid Oracle Cloud!")' > script.py
+            python3 script.py > result.txt
 
-    - name: Commit Result to Repo
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        scp -o StrictHostKeyChecking=no -i ~/.oci/oci_api_key.pem ${{ secrets.USERNAME }}@${{ env.PUBLIC_IP }}:~/result.txt .
-        git add result.txt
-        git commit -m "Add result from OCI run"
-        git push
+      - name: Commit Result to Repo
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          scp -o StrictHostKeyChecking=no -i ~/.oci/oci_api_key.pem ${{ secrets.USERNAME }}@${{ env.PUBLIC_IP }}:~/result.txt .
+          git add result.txt
+          git commit -m "Add result from OCI run"
+          git push
