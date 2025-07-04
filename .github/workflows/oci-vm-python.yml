@@ -42,11 +42,9 @@ jobs:
       id: launch_vm
       run: |
         echo "⏳ Launching free-tier VM..."
-        AD=$(oci iam availability-domain list \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --query "data[0].name" --raw-output)
-
-        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaauq6zlyghqotew75mp4t4fkp7hqk25sfb3l3vdu7c54cr6rjkpsma"
+        # Use hardcoded AD and image ID for UK-LONDON-1 region
+        AD="cNCI:UK-LONDON-1-AD-1"
+        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaa7ckxz76sog4z7a2m2eylndrb76wr3zqot2xoc4g2m2ml4cttxpra" # Ubuntu 22.04
 
         INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
