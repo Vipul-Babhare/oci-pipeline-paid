@@ -44,7 +44,7 @@ jobs:
         echo "⏳ Launching free-tier VM..."
         AD=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[0].name" --raw-output)
 
-        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaawo3yjremf25rephk6og5sfdp67vkrgro3krezmjpft54l5ltcb2a"
+        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaarwb4xwofxsj74jytsoolzc6zqaxo4as4lg5jhl2cpzc6e5ooubpq"
 
         INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
