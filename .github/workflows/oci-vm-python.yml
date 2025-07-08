@@ -11,18 +11,40 @@ jobs:
       - name: 🔧 Install OCI CLI
         run: |
           curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
-          bash install.sh --accept-all-defaults
+          chmod +x install.sh
+          ./install.sh --accept-all-defaults <<< ""
+          echo "$HOME/bin" >> $GITHUB_PATH
+          export PATH=$HOME/bin:$PATH
 
-      - name: ⏳ Launching free-tier VM...
+      - name: 🔐 Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+          cat <<EOF > ~/.oci/config
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_ID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          key_file=/home/runner/.oci/oci_api_key.pem
+          tenancy=${{ secrets.OCI_TENANCY_ID }}
+          region=${{ secrets.OCI_REGION }}
+          EOF
+
+          chmod 600 ~/.oci/config
+
+      - name: 🚀 Launching Free-Tier VM
         run: |
           echo "⏳ Launching free-tier VM..."
-          ~/.oci/bin/oci compute instance launch \
-            --availability-domain ${{ secrets.OCI_AD }} \
-            --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
-            --shape VM.Standard.E2.1.Micro \
-            --display-name github-actions-vm \
-            --image-id ${{ secrets.OCI_IMAGE_ID }} \
-            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
+          oci compute instance launch \
+            --availability-domain "${{ secrets.OCI_AD }}" \
+            --compartment-id "${{ secrets.OCI_COMPARTMENT_ID }}" \
+            --shape "VM.Standard.E2.1.Micro" \
+            --display-name "github-actions-vm" \
+            --image-id "${{ secrets.OCI_IMAGE_ID }}" \
+            --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
             --assign-public-ip true \
             --metadata '{"ssh_authorized_keys":"${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
-            --region ${{ secrets.OCI_REGION }}
+            --wait-for-state RUNNING \
+            --query "data.\"public-ip\"" \
+            --raw-output
