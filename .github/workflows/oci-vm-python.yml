@@ -5,24 +5,18 @@ on:
 
 jobs:
   deploy:
-    name: Provision Free VM Only
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-
-    - name: Install OCI CLI and Python
+    - name: 🔧 Install OCI CLI
       run: |
         sudo apt-get update
         sudo apt-get install -y unzip python3 python3-pip
-        curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
+        curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o install.sh
         chmod +x install.sh
-        ./install.sh --accept-all-defaults <<< ''
-        echo "$HOME/bin" >> $GITHUB_PATH
-        export PATH=$PATH:$HOME/bin
+        ./install.sh --accept-all-defaults <<< ""
 
-    - name: Configure OCI CLI
+    - name: 🛠️ Configure OCI CLI
       run: |
         mkdir -p ~/.oci
         echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
@@ -38,29 +32,29 @@ jobs:
         EOF
 
         chmod 600 ~/.oci/config
-        echo "✅ OCI CLI configured"
+        echo "✅ OCI CLI Configured"
         oci --version
 
-    - name: Launch Free Tier Ubuntu VM
+    - name: 🚀 Launch Free-Tier VM
       run: |
         echo "⏳ Launching free-tier VM..."
 
-        # Hardcoded AD and Image ID
+        # Hardcoded values — change if needed
         AD="${{ secrets.OCI_AD }}"
-        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaakubxn7vs64x6wx5mvq4npqwyeexiy46swxblv6gjgmquc7spas2q"
+        COMPARTMENT_ID="${{ secrets.OCI_COMPARTMENT_OCID }}"
+        SUBNET_ID="${{ secrets.OCI_SUBNET_OCID }}"
+        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaakubxn7vs64x6wx5mvq4npqwyeexiy46swxblv6gjgmquc7spas2q"  # Ubuntu 22.04
 
         INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+          --compartment-id "$COMPARTMENT_ID" \
           --shape "VM.Standard.E2.1.Micro" \
-          --display-name "github-actions-vm" \
-          --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
+          --display-name "gh-actions-freevm" \
+          --subnet-id "$SUBNET_ID" \
           --image-id "$IMAGE_ID" \
           --assign-public-ip true \
-          --metadata '{"ssh_authorized_keys":"${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
           --wait-for-state RUNNING \
-          --query "data.id" \
-          --raw-output)
+          --query "data.id" --raw-output)
 
-        echo "✅ VM launched successfully."
+        echo "✅ VM launched successfully"
         echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
