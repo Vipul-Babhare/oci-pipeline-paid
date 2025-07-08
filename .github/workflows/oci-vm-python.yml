@@ -1,67 +1,64 @@
-name: Launch Free OCI VM
+name: Launch Free OCI VM Only
 
 on:
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Provision Free-Tier VM
+    name: Launch Free Tier VM
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🧾 Checkout Code
+    - name: Checkout Repo
       uses: actions/checkout@v3
 
-    - name: 🛠 Install OCI CLI
+    - name: Install OCI CLI
       run: |
         sudo apt-get update
         sudo apt-get install -y unzip python3 python3-pip
         curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
         chmod +x install.sh
-        ./install.sh --accept-all-defaults --install-dir $HOME/lib/oracle-cli --exec-dir $HOME/bin
+        ./install.sh --accept-all-defaults <<< ''
         echo "$HOME/bin" >> $GITHUB_PATH
 
-    - name: ⚙️ Configure OCI CLI
+    - name: Configure OCI CLI
       run: |
         mkdir -p ~/.oci
         echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
         chmod 600 ~/.oci/oci_api_key.pem
 
-        printf "[DEFAULT]\nuser=%s\nfingerprint=%s\nkey_file=%s\ntenancy=%s\nregion=%s\n" \
-          "${{ secrets.OCI_USER_OCID }}" \
-          "${{ secrets.OCI_FINGERPRINT }}" \
-          "/home/runner/.oci/oci_api_key.pem" \
-          "${{ secrets.OCI_TENANCY_OCID }}" \
-          "${{ secrets.OCI_REGION }}" > ~/.oci/config
+        cat <<EOF > ~/.oci/config
+        [DEFAULT]
+         user=${{ secrets.OCI_USER_OCID }}
+         fingerprint=${{ secrets.OCI_FINGERPRINT }}
+         key_file=/home/runner/.oci/oci_api_key.pem
+         tenancy=${{ secrets.OCI_TENANCY_OCID }}
+         region=${{ secrets.OCI_REGION }}
+              EOF
 
         chmod 600 ~/.oci/config
-        echo "✅ OCI CLI Configured"
+        echo "✅ OCI CLI configured"
         oci --version
 
-    - name: 🚀 Launch Free-Tier Ubuntu VM
+    - name: Launch Free Tier Ubuntu VM
       run: |
-        export PATH="$HOME/bin:$PATH"
         echo "⏳ Launching free-tier VM..."
+        
+        AD=$(oci iam availability-domain list \
+          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
+          --query "data[0].name" --raw-output)
 
-        AD="${{ secrets.OCI_AD }}"
-        COMPARTMENT_ID="${{ secrets.OCI_COMPARTMENT_OCID }}"
-        SUBNET_ID="${{ secrets.OCI_SUBNET_OCID }}"
-        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaakubxn7vs64x6wx5mvq4npqwyeexiy46swxblv6gjgmquc7spas2q"  # Ubuntu 22.04
-
-        ENCODED_KEY=$(echo "${{ secrets.OCI_SSH_PUBLIC_KEY }}" | tr -d '\n')
+        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaarwb4xwofxsj74jytsoolzc6zqaxo4as4lg5jhl2cpzc6e5ooubpq"
 
         INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
-          --compartment-id "$COMPARTMENT_ID" \
+          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
           --shape "VM.Standard.E2.1.Micro" \
-          --display-name "gh-actions-freevm" \
-          --subnet-id "$SUBNET_ID" \
+          --display-name "github-actions-vm" \
+          --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
           --image-id "$IMAGE_ID" \
           --assign-public-ip true \
-          --metadata "{\"ssh_authorized_keys\":\"$ENCODED_KEY\"}" \
           --wait-for-state RUNNING \
-          --query "data.id" \
-          --raw-output)
+          --query "data.id" --raw-output)
 
-        echo "✅ VM launched with ID: $INSTANCE_ID"
-        echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+        echo "✅ Instance launched: $INSTANCE_ID"
