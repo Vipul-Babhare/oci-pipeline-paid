@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  launch-vm:
-    name: Launch Free-Tier VM Only
+  deploy:
+    name: Provision Free VM Only
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repo
+    - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Install OCI CLI
+    - name: Install OCI CLI and Python
       run: |
         sudo apt-get update
         sudo apt-get install -y unzip python3 python3-pip
@@ -21,7 +21,6 @@ jobs:
         ./install.sh --accept-all-defaults <<< ''
         echo "$HOME/bin" >> $GITHUB_PATH
         export PATH=$PATH:$HOME/bin
-        echo "✅ OCI CLI Installed"
 
     - name: Configure OCI CLI
       run: |
@@ -42,22 +41,13 @@ jobs:
         echo "✅ OCI CLI configured"
         oci --version
 
-    - name: Launch Free-Tier Ubuntu VM
+    - name: Launch Free Tier Ubuntu VM
       run: |
         echo "⏳ Launching free-tier VM..."
 
-        AD=$(oci iam availability-domain list \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --query "data[0].name" \
-          --raw-output)
-
-        IMAGE_ID=$(oci compute image list \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --query "data[?contains(\"display-name\", 'Ubuntu') && contains(\"display-name\", '22.04')].id | [0]" \
-          --region ${{ secrets.OCI_REGION }} \
-          --raw-output)
-
-        echo "✅ Ubuntu Image ID: $IMAGE_ID"
+        # Hardcoded AD and Image ID
+        AD="${{ secrets.OCI_AD }}"
+        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaakubxn7vs64x6wx5mvq4npqwyeexiy46swxblv6gjgmquc7spas2q"
 
         INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
@@ -65,10 +55,12 @@ jobs:
           --shape "VM.Standard.E2.1.Micro" \
           --display-name "github-actions-vm" \
           --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
-          --assign-public-ip true \
           --image-id "$IMAGE_ID" \
-          --metadata '{"ssh_authorized_keys": "${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
+          --assign-public-ip true \
+          --metadata '{"ssh_authorized_keys":"${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
           --wait-for-state RUNNING \
-          --query "data.id" --raw-output)
+          --query "data.id" \
+          --raw-output)
 
-        echo "✅ VM launched with INSTANCE_ID: $INSTANCE_ID"
+        echo "✅ VM launched successfully."
+        echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
