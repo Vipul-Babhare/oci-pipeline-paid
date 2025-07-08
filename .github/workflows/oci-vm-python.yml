@@ -8,16 +8,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🔧 Install OCI CLI
+      - name: 📦 Install OCI CLI
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip python3 python3-pip
-          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
+          sudo apt-get install -y unzip python3 python3-pip python3-venv
+          rm -rf $HOME/oci-cli $HOME/bin/oci  # Cleanup if rerunning
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o install.sh
           chmod +x install.sh
-          ./install.sh --accept-all-defaults --install-dir /home/runner --exec-dir /home/runner/bin
-          echo "/home/runner/bin" >> $GITHUB_PATH
+          ./install.sh --accept-all-defaults --install-dir $HOME/oci-cli
+          echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: ⚙️ Configure OCI CLI
+      - name: 🛠️ Configure OCI CLI
         run: |
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
@@ -34,37 +35,23 @@ jobs:
 
           chmod 600 ~/.oci/config
           oci --version
-          echo "✅ OCI CLI is ready"
 
-      - name: 🚀 Launching Free-Tier VM
+      - name: 🚀 Launch Free-Tier VM
         run: |
           echo "⏳ Launching free-tier VM..."
-          echo "🖼️ Using Image ID: ${{ secrets.OCI_IMAGE_ID }}"
+          AD_NAME=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[0].name" --raw-output)
 
           INSTANCE_ID=$(oci compute instance launch \
-            --availability-domain "${{ secrets.OCI_AD }}" \
-            --compartment-id "${{ secrets.OCI_COMPARTMENT_ID }}" \
+            --availability-domain "$AD_NAME" \
+            --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
             --shape "VM.Standard.E2.1.Micro" \
             --display-name "github-actions-vm" \
-            --image-id "${{ secrets.OCI_IMAGE_ID }}" \
-            --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
+            --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
             --assign-public-ip true \
-            --metadata '{"ssh_authorized_keys":"${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
-            --wait-for-state RUNNING \
+            --image-id "${{ secrets.OCI_IMAGE_ID }}" \
+            --metadata '{"ssh_authorized_keys":"'"${{ secrets.OCI_SSH_PUBLIC_KEY }}"'"}' \
             --query "data.id" \
-            --raw-output)
+            --raw-output \
+            --wait-for-state RUNNING)
 
-          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
-          echo "✅ VM Launched: $INSTANCE_ID"
-
-      - name: 🌐 Fetch Public IP
-        run: |
-          echo "🌐 Fetching public IP..."
-          PUBLIC_IP=$(oci compute instance list-vnics \
-            --instance-id "$INSTANCE_ID" \
-            --compartment-id "${{ secrets.OCI_COMPARTMENT_ID }}" \
-            --query "data[0].\"public-ip\"" \
-            --raw-output)
-
-          echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
-          echo "🔗 VM Public IP: $PUBLIC_IP"
+          echo "✅ Instance ID: $INSTANCE_ID"
