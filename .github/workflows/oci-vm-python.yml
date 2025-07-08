@@ -11,12 +11,12 @@ jobs:
         run: |
           echo "⏳ Launching free-tier VM..."
           oci compute instance launch \
-            --availability-domain <your-ad-name> \
+            --availability-domain ${{ secrets.OCI_AD }} \
             --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
             --shape VM.Standard.E2.1.Micro \
             --display-name github-actions-vm \
             --image-id ${{ secrets.OCI_IMAGE_ID }} \
             --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
             --assign-public-ip true \
-            --metadata '{"ssh_authorized_keys":"'"${{ secrets.OCI_SSH_PUBLIC_KEY }}"'"}' \
+            --metadata '{"ssh_authorized_keys":"${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
             --region ${{ secrets.OCI_REGION }}
