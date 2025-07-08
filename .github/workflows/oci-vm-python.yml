@@ -1,91 +1,22 @@
-name: Launch Free OCI VM and Run Python Script
+name: Launch OCI Free-Tier VM
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Provision Free VM and Run Script
+  launch-vm:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repo
-      uses: actions/checkout@v3
-
-    - name: Install OCI CLI and Python
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y unzip python3 python3-pip
-        curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
-        chmod +x install.sh
-        ./install.sh --accept-all-defaults <<< ''
-        echo "$HOME/bin" >> $GITHUB_PATH
-
-    - name: Configure OCI CLI
-      run: |
-        mkdir -p ~/.oci
-        echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
-        chmod 600 ~/.oci/oci_api_key.pem
-
-        echo "[DEFAULT]" > ~/.oci/config
-        echo "user=${{ secrets.OCI_USER_OCID }}" >> ~/.oci/config
-        echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}" >> ~/.oci/config
-        echo "key_file=/home/runner/.oci/oci_api_key.pem" >> ~/.oci/config
-        echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}" >> ~/.oci/config
-        echo "region=${{ secrets.OCI_REGION }}" >> ~/.oci/config
-
-        chmod 600 ~/.oci/config
-        echo "✅ OCI CLI configured"
-        oci --version
-
-    - name: Launch Free Tier Ubuntu VM
-      id: launch_vm
-      run: |
-        echo "⏳ Launching free-tier VM..."
-        AD=$(oci iam availability-domain list --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} --query "data[0].name" --raw-output)
-
-        IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaarwb4xwofxsj74jytsoolzc6zqaxo4as4lg5jhl2cpzc6e5ooubpq"
-
-        INSTANCE_ID=$(oci compute instance launch \
-          --availability-domain "$AD" \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --shape "VM.Standard.E2.1.Micro" \
-          --display-name "github-actions-vm" \
-          --subnet-id ${{ secrets.OCI_SUBNET_OCID }} \
-          --image-id "$IMAGE_ID" \
-          --assign-public-ip true \
-          --wait-for-state RUNNING \
-          --query "data.id" --raw-output)
-
-        echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
-
-    - name: Wait and Fetch Public IP
-      run: |
-        sleep 60
-        PUBLIC_IP=$(oci compute instance list-vnics \
-          --instance-id $INSTANCE_ID \
-          --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-          --query "data[0].\"public-ip\"" --raw-output)
-        echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
-        echo "🔗 Public IP: $PUBLIC_IP"
-
-    - name: SSH and Run Python Code
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ env.PUBLIC_IP }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          sudo apt update
-          sudo apt install -y python3
-          echo 'print("Hello from company-paid Oracle Cloud!")' > script.py
-          python3 script.py > result.txt
-
-    - name: Commit Result to Repo
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        scp -o StrictHostKeyChecking=no -i ~/.oci/oci_api_key.pem ${{ secrets.USERNAME }}@${{ env.PUBLIC_IP }}:~/result.txt .
-        git add result.txt
-        git commit -m "Add result from OCI run"
-        git push
+      - name: ⏳ Launching free-tier VM...
+        run: |
+          echo "⏳ Launching free-tier VM..."
+          oci compute instance launch \
+            --availability-domain <your-ad-name> \
+            --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
+            --shape VM.Standard.E2.1.Micro \
+            --display-name github-actions-vm \
+            --image-id ${{ secrets.OCI_IMAGE_ID }} \
+            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
+            --assign-public-ip true \
+            --metadata '{"ssh_authorized_keys":"'"${{ secrets.OCI_SSH_PUBLIC_KEY }}"'"}' \
+            --region ${{ secrets.OCI_REGION }}
