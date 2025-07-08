@@ -6,11 +6,17 @@ on:
 jobs:
   launch-vm:
     runs-on: ubuntu-latest
+
     steps:
+      - name: 🔧 Install OCI CLI
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
+          bash install.sh --accept-all-defaults
+
       - name: ⏳ Launching free-tier VM...
         run: |
           echo "⏳ Launching free-tier VM..."
-          oci compute instance launch \
+          ~/.oci/bin/oci compute instance launch \
             --availability-domain ${{ secrets.OCI_AD }} \
             --compartment-id ${{ secrets.OCI_COMPARTMENT_ID }} \
             --shape VM.Standard.E2.1.Micro \
