@@ -15,6 +15,8 @@ jobs:
         curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o install.sh
         chmod +x install.sh
         ./install.sh --accept-all-defaults <<< ""
+        echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+        export PATH="$HOME/bin:$PATH"
 
     - name: 🛠️ Configure OCI CLI
       run: |
@@ -33,13 +35,16 @@ jobs:
 
         chmod 600 ~/.oci/config
         echo "✅ OCI CLI Configured"
+        export PATH="$HOME/bin:$PATH"
         oci --version
 
     - name: 🚀 Launch Free-Tier VM
       run: |
         echo "⏳ Launching free-tier VM..."
 
-        # Hardcoded values — change if needed
+        export PATH="$HOME/bin:$PATH"
+
+        # Hardcoded values — adjust if needed
         AD="${{ secrets.OCI_AD }}"
         COMPARTMENT_ID="${{ secrets.OCI_COMPARTMENT_OCID }}"
         SUBNET_ID="${{ secrets.OCI_SUBNET_OCID }}"
