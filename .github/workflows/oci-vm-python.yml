@@ -12,6 +12,12 @@ jobs:
     - name: Checkout Repo
       uses: actions/checkout@v3
 
+    - name: 🔍 Print SSH Key Type (Safe Check)
+      run: |
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > temp_key.pem
+        chmod 600 temp_key.pem
+        ssh-keygen -l -f temp_key.pem
+
     - name: Install OCI CLI and Python
       run: |
         sudo apt-get update
