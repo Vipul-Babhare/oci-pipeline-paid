@@ -5,23 +5,17 @@ on:
 
 jobs:
   deploy:
-    name: Provision Free VM and Run Python
+    name: Provision Free VM + Run Python
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Repo
       uses: actions/checkout@v3
 
-    - name: 🔍 Print SSH Key Type (Safe Check)
-      run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > temp_key.pem
-        chmod 600 temp_key.pem
-        ssh-keygen -l -f temp_key.pem
-
     - name: Install OCI CLI and Python
       run: |
         sudo apt-get update
-        sudo apt-get install -y unzip python3 python3-pip openssh-client
+        sudo apt-get install -y unzip python3 python3-pip
         curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh > install.sh
         chmod +x install.sh
         ./install.sh --accept-all-defaults <<< ''
@@ -45,7 +39,6 @@ jobs:
         oci --version
 
     - name: Launch Free Tier Ubuntu VM
-      id: launch_vm
       run: |
         echo "⏳ Launching free-tier VM..."
         AD=$(oci iam availability-domain list \
@@ -54,7 +47,7 @@ jobs:
 
         IMAGE_ID="ocid1.image.oc1.uk-london-1.aaaaaaaarwb4xwofxsj74jytsoolzc6zqaxo4as4lg5jhl2cpzc6e5ooubpq"
 
-        INSTANCE=$(oci compute instance launch \
+        INSTANCE_ID=$(oci compute instance launch \
           --availability-domain "$AD" \
           --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
           --shape "VM.Standard.E2.1.Micro" \
@@ -63,26 +56,14 @@ jobs:
           --image-id "$IMAGE_ID" \
           --assign-public-ip true \
           --metadata '{"ssh_authorized_keys":"${{ secrets.OCI_SSH_PUBLIC_KEY }}"}' \
-          --wait-for-state RUNNING)
-
-        INSTANCE_ID=$(echo "$INSTANCE" | jq -r '.data.id')
-        PUBLIC_IP=$(oci compute instance list-vnics --instance-id "$INSTANCE_ID" \
-                    --compartment-id ${{ secrets.OCI_COMPARTMENT_OCID }} \
-                    --query "data[0].\"public-ip\"" --raw-output)
+          --wait-for-state RUNNING \
+          --query "data.id" --raw-output)
 
         echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
-        echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
-        echo "🟢 VM Launched at IP: $PUBLIC_IP"
 
-    - name: Wait for VM to be Ready
-      run: sleep 90
-
-    - name: Copy Python Script to VM
+    - name: ✅ Run Python Script from GitHub Actions (No SSH)
+      env:
+        REPO_URL: ${{ secrets.REPO_URL }}
+        GH_PAT: ${{ secrets.GH_PAT }}
       run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > id_rsa
-        chmod 600 id_rsa
-        scp -o StrictHostKeyChecking=no -i id_rsa test_script.py ubuntu@$PUBLIC_IP:/home/ubuntu/
-
-    - name: Run Python Script on VM
-      run: |
-        ssh -o StrictHostKeyChecking=no -i id_rsa ubuntu@$PUBLIC_IP "python3 /home/ubuntu/test_script.py"
+        python3 test_script.py
